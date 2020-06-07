@@ -1,7 +1,7 @@
 # Chat-Cliente
 Juntamente com o Chat-Server, usa a biblioteca SFML para implementar um chat multiusuário.
 
-Inicialize o servidor. No console, será informado os IP's público e privado. Na pasta do cliente, edite o arquivo com o IP adequado: se o cliente estiver na mesma rede do servidor, coloque o IP privado, caso contrário, coloque o público (lembrando de configurar o redirecionamento de porta).
+Inicialize o servidor. No console, serão informados os IP's público e privado. Na pasta do cliente, edite o arquivo config.txt com o IP adequado: se o cliente estiver na mesma rede do servidor, coloque o IP privado, caso contrário, coloque o público (lembrando de configurar o redirecionamento de porta).
 Inicialize o cliente.
 Será solicitado um nome de usuário.
 Após inserir o nome, a tela do chat se abrirá, contendo uma conversa com o próprio usuário (para lembretes, notas, etc).
