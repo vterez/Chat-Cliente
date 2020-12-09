@@ -1,21 +1,22 @@
-#include "Envio.h"
-#include "Recebimento.h"
+#include "Envio.hpp"
+#include "Recebimento.hpp"
 int main(){
+    try{
 	SetConsoleCP(1252);
     SetConsoleOutputCP(1252);
 
     if(!Inicializa())
         return -1;
-
+    
     std::thread t1(Recebimento::Recebe);
     std::thread t2(Envio::EnviaCheck);
 
-    float alturabase=0;
-    bool mandandoprint=false,scrolling=false,pesquisando=false;
+    bool mandandoprint=false,pesquisando=false;
     bool controledesenho=0,mostrabarrinha=0;
     sf::Vector2f posimouse;
     float delta;
-
+    int primeiroenter;
+    std::string c;
     sf::RenderWindow window(sf::VideoMode(1300,800),"Chat");
     window.setFramerateLimit(30);
     float dt = 1.f/100.f; // Modify this to change physics rate.
@@ -74,33 +75,42 @@ int main(){
                                                 contatoatual.novasmensagens=false;
                                                 existenotificacao[a]=false;
                                                 nomecvatual.setString(contatoatual.nome);
-                                                alturabase=-contatoatual.offsetnaovisto;
-                                                if(alturabase>675)
+                                                if(contatoatual.nproprias!=1)
                                                 {
-                                                    alturabase-=200;
-                                                    int poslinha=506;
-                                                    int offset=contatoatual.chatoffset-30;
-                                                    if(offset<0&&alturabase>-offset)
+                                                    alturabase=-contatoatual.offsetnaovisto;
+                                                    if(alturabase>675)
                                                     {
-                                                        while(alturabase>-offset)
-                                                        {alturabase-=5;
-                                                        poslinha-=5;}
+                                                        alturabase-=200;
+                                                        int poslinha=506;
+                                                        int offset=contatoatual.chatoffset-30;
+                                                        if(offset<0&&alturabase>-offset)
+                                                        {
+                                                            while(alturabase>-offset)
+                                                            {alturabase-=5;
+                                                            poslinha-=5;}
+                                                        }
+                                                        contatoatual.offsetnaovisto=0;
+                                                        if(alturabase!=0)
+                                                        {
+                                                            scrolling=true;
+                                                            mostrabarrinha=true;
+                                                            linha.setPosition(300,poslinha);
+                                                            textomensagem.setPosition(300,710);
+                                                        }
                                                     }
-                                                    contatoatual.offsetnaovisto=0;
-                                                    if(alturabase!=0)
+                                                    else
                                                     {
-                                                        scrolling=true;
+                                                        linha.setPosition(300,705-alturabase);
+                                                        alturabase=0;
+                                                        contatoatual.offsetnaovisto=0;
                                                         mostrabarrinha=true;
-                                                        linha.setPosition(300,poslinha);
                                                     }
                                                 }
                                                 else
                                                 {
-                                                    linha.setPosition(300,705-alturabase);
-                                                    alturabase=0;
-                                                    contatoatual.offsetnaovisto=0;
-                                                    mostrabarrinha=true;
+                                                    mostrabarrinha=false;
                                                 }
+                                                
                                             }
                                         }
                                         break;
@@ -118,21 +128,38 @@ int main(){
                         if(limenvia.contains(posimouse))
                         {
                             mandandoprint=false;
+                            auto& contatoatual=contatos[cvatual];
                             if(ncarac==0&&nlinhas==1)
                             {
-                                fila.push_back(std::make_unique<ImagemPura>(vprint,1,tx,ty,tam));
-                                filadest.push_back(cvatual);
+                                if(e_resp)
+                                {
+                                    for (auto &i:contatoatual.chat)
+                                        if(i->nmensagem==e_resp)
+                                            fila.push_back(std::make_unique<ImagemPura>(vprint,1,tx,ty,tam,contatoatual.nproprias++,i->tipo,i.get(),e_resp));
+                                }
+                                else
+                                    fila.push_back(std::make_unique<ImagemPura>(vprint,1,tx,ty,tam,contatoatual.nproprias++));
+                                filadest.emplace_back(cvatual,e_resp);
                             }
                             else
                             {
-                                Envio::FormataTexto();
-                                fila.push_back(std::make_unique<ImagemTexto>(vprint,stringmensagem,1,tx,ty,tam,215+23*nlinhas,retpadrao2,nlinhas));
-                                filadest.push_back(cvatual);
+                                primeiroenter=Envio::FormataTexto();
+                                if(e_resp)
+                                {
+                                    for (auto &i:contatoatual.chat)
+                                        if(i->nmensagem==e_resp)
+                                            fila.push_back(std::make_unique<ImagemTexto>(vprint,stringmensagem,1,tx,ty,tam,215+23*nlinhas,nlinhas,contatoatual.nproprias++,primeiroenter,i->tipo,i.get(),e_resp));
+                                }
+                                else
+                                    fila.push_back(std::make_unique<ImagemTexto>(vprint,stringmensagem,1,tx,ty,tam,215+23*nlinhas,nlinhas,contatoatual.nproprias++,primeiroenter));
+                                filadest.emplace_back(cvatual,e_resp);
                                 ncarac=0;
                                 nlinhas=1;
                                 stringmensagem.clear();
                                 textomensagem.setString(stringmensagem);
                             }
+                            e_resp=0;
+                            caixa.setFillColor(sf::Color::White);;
                             vprint=nullptr;
                             if(!enviando)
                             {
@@ -164,21 +191,40 @@ int main(){
                         {
                             if(mandandoprint)
                             {
+                                auto& contatoatual=contatos[cvatual];
                                 if(ncarac==0&&nlinhas==1)
                                 {
-                                    fila.push_back(std::make_unique<ImagemPura>(vprint,1,tx,ty,tam));
-                                    filadest.push_back(cvatual);
+                                    if(e_resp)
+                                    {
+                                        for (auto &i:contatoatual.chat)
+                                            if(i->nmensagem==e_resp)
+                                                fila.push_back(std::make_unique<ImagemPura>(vprint,1,tx,ty,tam,contatoatual.nproprias++,i->tipo,i.get(),e_resp));
+                                    }
+                                    else
+                                        fila.push_back(std::make_unique<ImagemPura>(vprint,1,tx,ty,tam,contatos[cvatual].nproprias++));
+                                    filadest.emplace_back(cvatual,e_resp);
+                                    e_resp=0;
+                                    caixa.setFillColor(sf::Color::White);;
                                 }
                                 else
                                 {
-                                    Envio::FormataTexto();
-                                    fila.push_back(std::make_unique<ImagemTexto>(vprint,stringmensagem,1,tx,ty,tam,215+23*nlinhas,retpadrao2,nlinhas));
-                                    filadest.push_back(cvatual);
+                                    primeiroenter=Envio::FormataTexto();
+                                    if(e_resp)
+                                    {
+                                        for (auto &i:contatoatual.chat)
+                                            if(i->nmensagem==e_resp)
+                                                fila.push_back(std::make_unique<ImagemTexto>(vprint,stringmensagem,1,tx,ty,tam,215+23*nlinhas,nlinhas,contatoatual.nproprias++,primeiroenter,i->tipo,i.get(),e_resp));
+                                    }
+                                    else
+                                        fila.push_back(std::make_unique<ImagemTexto>(vprint,stringmensagem,1,tx,ty,tam,215+23*nlinhas,nlinhas,contatos[cvatual].nproprias++,primeiroenter));
+                                    filadest.emplace_back(cvatual,e_resp);
                                     ncarac=0;
                                     nlinhas=1;
                                     stringmensagem.clear();
                                     textomensagem.setString(stringmensagem);
                                     textomensagem.setPosition(300,710);
+                                    e_resp=0;
+                                    caixa.setFillColor(sf::Color::White);;
                                 }
                                 mandandoprint=false;
                                 vprint=nullptr;
@@ -192,9 +238,19 @@ int main(){
                             {
                                 if(nlinhas==1&&ncarac==0)
                                     break;
-                                Envio::FormataTexto();
-                                fila.push_back(std::make_unique<Texto>(stringmensagem,1,retpadrao2,nlinhas));
-                                filadest.push_back(cvatual);
+                                primeiroenter=Envio::FormataTexto();
+                                auto& contatoatual=contatos[cvatual];
+                                if(e_resp)
+                                {
+                                    for (auto &i:contatoatual.chat)
+                                        if(i->nmensagem==e_resp)
+                                            fila.push_back(std::make_unique<Texto>(stringmensagem,1,nlinhas,contatoatual.nproprias++,primeiroenter,i->tipo,i.get(),e_resp));
+                                }
+                                else
+                                    fila.push_back(std::make_unique<Texto>(stringmensagem,1,nlinhas,contatoatual.nproprias++,primeiroenter));
+                                filadest.emplace_back(cvatual,e_resp);
+                                e_resp=0;
+                                caixa.setFillColor(sf::Color::White);;
                                 nlinhas=1;
                                 ncarac=0;
                                 textomensagem.setPosition(300,710);
@@ -300,14 +356,19 @@ int main(){
                             }
                             pesquisanome=false;
                         }
-                        else if(!visualizaprint)
+                        else if(!visualizaprint&&!e_resp)
                         {
                             Envio::EnviaFinal();
                             window.close();
                             running=false;
                         }
-                        else
+                        else if(visualizaprint)
                             visualizaprint=false;
+                        else
+                            {
+                                e_resp=0;
+                                caixa.setFillColor(sf::Color::White);
+                            }
                         break;
                     }
                     case sf::Keyboard::Q:
@@ -677,5 +738,9 @@ int main(){
         }
     }
     t1.join();
-    t2.join();
+    t2.join();}
+    catch (std::exception &e)
+    {
+        std::wcout<<e.what();
+    }
 }

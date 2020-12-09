@@ -1,13 +1,22 @@
-#include "Recebimento.h"
+#include "Recebimento.hpp"
 #include <iostream>
 
-void Recebimento::RecebeMensagemTexto(sf::Packet &pacote,int offset,std::list<std::unique_ptr<Mensagem>>& chat)
+void Recebimento::RecebeMensagemTexto(sf::Packet &pacote,int offset,std::list<std::unique_ptr<Mensagem>>& chat,int nrec)
 {
     std::wstring s;
-    pacote>>s;
-    chat.push_back(std::make_unique<Texto>(s,0,retpadrao1,(offset+10)/23));
+    int resp,p_enter;
+    pacote>>s>>p_enter>>resp;
+    resp*=(-1);
+    if(resp!=0)
+    {
+        for(auto &a:chat)
+            if(a->nmensagem==resp)
+                chat.push_back(std::make_unique<Texto>(s,0,(offset+10)/23,nrec,p_enter,a->tipo,a.get(),resp));
+    }
+    else            
+        chat.push_back(std::make_unique<Texto>(s,0,(offset+10)/23,nrec,p_enter));
 }
-void Recebimento::RecebeMensagemSom(sf::Packet &pacote,std::list<std::unique_ptr<Mensagem>>& chat)
+void Recebimento::RecebeMensagemSom(sf::Packet &pacote,std::list<std::unique_ptr<Mensagem>>& chat,int nrec)
 {
     sf::SoundBuffer buff;
     sf::Sound som;
@@ -21,15 +30,26 @@ void Recebimento::RecebeMensagemSom(sf::Packet &pacote,std::list<std::unique_ptr
     buff.loadFromSamples(samples.get(),samplecount,channelcount,samplerate);
     std::wstring tempo;
     pacote>>tempo;
-    sf::Text duracao=Texto::textopadrao;
+    int resp;
+    pacote>>resp;
+    resp*=(-1);
+    sf::Text duracao=textopadrao;
     duracao.setString(tempo);
-    chat.push_back(std::make_unique<Som>(buff,0,retpadrao1,duracao));
+    if(resp!=0)
+    {
+        for(auto &a:chat)
+            if(a->nmensagem==resp)
+                chat.push_back(std::make_unique<Som>(buff,0,duracao,nrec,a->tipo,a.get(),resp));
+    }
+    else
+        chat.push_back(std::make_unique<Som>(buff,0,duracao,nrec));
 }
-void Recebimento::RecebeMensagemImagem(sf::Packet &pacote,std::list<std::unique_ptr<Mensagem>>& chat)
+void Recebimento::RecebeMensagemImagem(sf::Packet &pacote,std::list<std::unique_ptr<Mensagem>>& chat,int nrec)
 {
     sf::Uint64 tam;
     sf::Uint8* rgba;
     float x,y;
+    int resp;
     pacote>>tam;
     rgba=new sf::Uint8[tam];
     pacote>>x>>y;
@@ -37,10 +57,19 @@ void Recebimento::RecebeMensagemImagem(sf::Packet &pacote,std::list<std::unique_
     {
         pacote>>rgba[i];
     }
-    chat.push_back(std::make_unique<ImagemPura>(rgba,false,x,y,tam));
+    pacote>>resp;
+    resp*=(-1);
+    if(resp!=0)
+    {
+        for(auto &a:chat)
+            if(a->nmensagem==resp)
+                chat.push_back(std::make_unique<ImagemPura>(rgba,false,x,y,tam,nrec,a->tipo,a.get(),resp)); 
+    }
+    else       
+        chat.push_back(std::make_unique<ImagemPura>(rgba,false,x,y,tam,nrec));
 }
 
-void Recebimento::RecebeMensagemImagemTexto(sf::Packet &pacote,int offset,std::list<std::unique_ptr<Mensagem>>& chat)
+void Recebimento::RecebeMensagemImagemTexto(sf::Packet &pacote,int offset,std::list<std::unique_ptr<Mensagem>>& chat,int nrec)
 {
     sf::Uint64 tam;
     sf::Uint8* rgba;
@@ -52,10 +81,18 @@ void Recebimento::RecebeMensagemImagemTexto(sf::Packet &pacote,int offset,std::l
     {
         pacote>>rgba[i];
     }
-    int linhas;
+    int linhas,resp,p_enter;
     std::wstring s;
-    pacote>>linhas>>s;
-    chat.push_back(std::make_unique<ImagemTexto>(rgba,s,0,x,y,tam,offset,retpadrao1,linhas));
+    pacote>>linhas>>s>>p_enter>>resp;
+    resp*=(-1);
+    if(resp!=0)
+    {
+        for(auto &a:chat)
+            if(a->nmensagem==resp)
+                chat.push_back(std::make_unique<ImagemTexto>(rgba,s,0,x,y,tam,offset,linhas,nrec,p_enter,a->tipo,a.get(),resp));
+    }
+    else
+        chat.push_back(std::make_unique<ImagemTexto>(rgba,s,0,x,y,tam,offset,linhas,nrec,p_enter));
 }
 void Recebimento::Recebe ()
 {
@@ -67,6 +104,7 @@ void Recebimento::Recebe ()
         status=soquete.receive(pacote);
         if(status==sf::Socket::Done)
         {
+			std::wcout<<L"entrou no recebimento\n";
             int tipo;
             int remetente;
             int offset;
@@ -143,22 +181,22 @@ void Recebimento::Recebe ()
                 {
                 case 1:
                 {
-                    RecebeMensagemTexto(pacote,offset,contatoatual.chat);
+                    RecebeMensagemTexto(pacote,offset,contatoatual.chat,-contatoatual.nreceb++);
                     break;
                 }
                 case 2:
                 {
-                    RecebeMensagemSom(pacote,contatoatual.chat);
+                    RecebeMensagemSom(pacote,contatoatual.chat,-contatoatual.nreceb++);
                     break;
                 }
                 case 3:
                 {
-                    RecebeMensagemImagem(pacote,contatoatual.chat);
+                    RecebeMensagemImagem(pacote,contatoatual.chat,-contatoatual.nreceb++);
                     break;
                 }
                 case 4:
                 {
-                    RecebeMensagemImagemTexto(pacote,offset,contatoatual.chat);
+                    RecebeMensagemImagemTexto(pacote,offset,contatoatual.chat,-contatoatual.nreceb++);
                     break;
                 }
                 default:

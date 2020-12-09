@@ -1,9 +1,9 @@
-#include "Envio.h"
+#include "Envio.hpp"
 #include <iostream>
 #include <fstream>
 using namespace Envio;
 
-void Envio::FormataTexto()
+int Envio::FormataTexto()
 {
     std::wstring formatado;
     int tam=std::size(stringmensagem);
@@ -48,6 +48,7 @@ void Envio::FormataTexto()
         }
     }
     stringmensagem=formatado;
+    return stringmensagem.find_first_of('\n');
 }
 
 
@@ -57,7 +58,9 @@ void Envio::Envia ()
     while(!fila.empty())
     {
         int offset=fila.front()->offset;//deslocamento pra cima
-        int dest=filadest.front();//destino
+        auto item=filadest.front();
+        int dest=item.first;//destino
+        int mandaresp=item.second;
         auto &contatoatual=contatos[dest];
         sf::Packet pacote;
         bool travado=false;//controle para evitar acesso/modificacao na cvatual caso o destino seja ela
@@ -73,7 +76,7 @@ void Envio::Envia ()
         if(dest!=id)
         {
             //cria o pacote e envia, caso nao seja o proprio id
-            pacote=fila.front()->Envia(dest,contatoatual.nomeconhecido);
+            pacote=fila.front()->Envia(dest,contatoatual.nomeconhecido,mandaresp);
             while(soquete.send(pacote)!=sf::Socket::Status::Done)
             {
                 if(!running)
@@ -138,7 +141,6 @@ sf::Uint8* Envio::Colaimagem(HBITMAP hBitmap,float &tx,float &ty,long unsigned i
 
     //Now get the actual data from the picture
     GetDIBits(hDC, hBitmap, 0, MyBMInfo.bmiHeader.biHeight, (LPVOID)lpPixels, &MyBMInfo, DIB_RGB_COLORS);
-
     tam=MyBMInfo.bmiHeader.biSizeImage;
     //Now create an array of SFML pixels we want to fill
     sf::Uint8 *lpPixelWithAlpha = new sf::Uint8[tam]; //Add room for alpha
@@ -150,7 +152,10 @@ sf::Uint8* Envio::Colaimagem(HBITMAP hBitmap,float &tx,float &ty,long unsigned i
         lpPixelWithAlpha[u-3] = lpPixels[x+2];    //lpPixels = r
         lpPixelWithAlpha[u-2] = lpPixels[x+1];    //lpPixels = g
         lpPixelWithAlpha[u-1] = lpPixels[x];    //lpPixels = b
-        lpPixelWithAlpha[u] = lpPixels[x+3];        //Nada alpha (just to adjust if you like)
+        if(lpPixels[x+3]>0)
+            lpPixelWithAlpha[u] = lpPixels[x+3];
+        else
+            lpPixelWithAlpha[u]=255;
         u-=4;
     }
     tx=MyBMInfo.bmiHeader.biWidth;
@@ -212,6 +217,8 @@ bool Envio::GetFromClipboard()
                 ncarac++;
             }
         }
+        for(auto &b:stringmensagem)
+            std::wcout<<(int)b<<L" "<<b<<std::endl;
         return 0;
     }
     OpenClipboard(NULL);
@@ -271,6 +278,7 @@ void Envio::GravaSom()
     contagem.setString("0:00");
     contagem.setFillColor(sf::Color::Black);
     contagem.setPosition(20,0);
+    auto &contatoatual = contatos[cvatual];
     sf::RenderWindow window(sf::VideoMode(230,90),"Gravador",sf::Style::None);
     window.setFramerateLimit(10);
     recorder.start();
@@ -295,8 +303,17 @@ void Envio::GravaSom()
                 {
                     gravando=0;
                     recorder.stop();
-                    fila.push_back(std::make_unique<Som>(recorder.getBuffer(),1,retpadrao2,contagem));
-                    filadest.push_back(cvatual);
+                    if(e_resp)
+                    {
+                        for(auto &a:contatoatual.chat)
+                            if(a->nmensagem==e_resp)
+                                fila.push_back(std::make_unique<Som>(recorder.getBuffer(),1,contagem,contatoatual.nproprias++,a->tipo,a.get(),e_resp));
+                        caixa.setFillColor(sf::Color::White);
+                    }
+                    else
+                        fila.push_back(std::make_unique<Som>(recorder.getBuffer(),1,contagem,contatoatual.nproprias++));
+                    filadest.emplace_back(cvatual,e_resp);
+                    e_resp=0;
                     if(!enviando)
                     {
                         std::thread(Envio::Envia).detach();

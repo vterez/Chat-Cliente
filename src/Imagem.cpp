@@ -1,14 +1,12 @@
-#include "Imagem.h"
+#include "Imagem.hpp"
 
-Imagem::Imagem(sf::Uint8* rgba,bool p,float x,float y,sf::Uint64 t,int l):Mensagem(3,p,l)
+Imagem::Imagem(sf::Uint8* rgba,bool p,float x,float y,sf::Uint64 t,int l,int n):Mensagem(3,p,l,n)
 {
     vetorpixels=rgba;
     texture.create(x,y);
     texture.update(vetorpixels);
     texture.setSmooth(1);
     sprite=sf::Sprite(texture);
-    //sprite.setOrigin(poenomeio(sprite));
-    posi=705;
     if(y>210||x>300)
     {
         if(300/x<210/y)
@@ -33,7 +31,7 @@ Imagem::Imagem(sf::Uint8* rgba,bool p,float x,float y,sf::Uint64 t,int l):Mensag
     }
 }
 
-int Imagem::Clicou(sf::Vector2f& posimouse,bool botao,float off)
+int Imagem::Clicou(sf::Vector2f& posimouse,bool botao,float off,int &aux)
 {
     char filename[ MAX_PATH ];
 

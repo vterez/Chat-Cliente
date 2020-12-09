@@ -1,4 +1,4 @@
-#include "BaseInclude.h"
+#include "BaseInclude.hpp"
 
 sf::TcpSocket soquete;
 
@@ -7,6 +7,7 @@ std::atomic<bool> enviando=false;
 std::atomic<bool> gravando=false;
 std::atomic<bool> editando=false;
 std::atomic<bool> visualizaprint=false;
+std::atomic<bool> scrolling=false;
 std::atomic<bool> idnaoexiste=false;
 std::atomic<int> cvatual=0;
 std::atomic<int> scrollcontatos=0;
@@ -14,23 +15,24 @@ std::mutex travachat,travaconversas,travanomes;
 std::atomic<bool> pesquisanome=false;
 std::atomic<bool> existenotificacao[8];
 
-//std::unordered_map<int,std::list<std::unique_ptr<Mensagem>>> chat;
-//std::unordered_map<int,int> chatoffset;
 std::list<std::unique_ptr<Mensagem>> fila;
-std::list<int> filadest;
+std::list<std::pair<int,int>> filadest;
 std::list<int> ordemconversas;
 int idsconversas[8];
 int id;
 std::wstring nome;
-//std::unordered_map<int,std::wstring> nomes;
 std::list<int> ordempesquisa;
 std::unordered_map<int,Contato> contatos;
+
+int e_resp=0;
+int alturabase=0;
 
 int ncarac=0;
 int nlinhas=1;
 std::wstring stringmensagem;
 std::wstring stringpesquisa;
 sf::Font fonte;
+sf::Text textopadrao;
 sf::Text textoenvia,textocancela;
 sf::Text textomensagem;
 sf::Text textoantespesquisa;
@@ -42,8 +44,6 @@ sf::Text nomefixo;
 sf::Text idfixo;
 sf::Text nomecvatual;
 
-sf::RectangleShape retpadrao1(sf::Vector2f(300,30));
-sf::RectangleShape retpadrao2(sf::Vector2f(300,30));
 sf::RectangleShape retenvia(sf::Vector2f(96,30));
 sf::RectangleShape retcancela=retenvia;
 sf::RectangleShape caixa(sf::Vector2f(1000,90));
@@ -74,18 +74,21 @@ bool Inicializa()
 {
     std::fstream pegaip;
     pegaip.open("config.txt",std::fstream::in);
-    std::string getip;
+    std::string getip,getporta;
     std::getline(pegaip,getip);
+	std::getline(pegaip,getporta);
     pegaip.close();
     //testa conexao
-    sf::Socket::Status estado=soquete.connect(getip,1000,sf::seconds(15.f));
+    sf::Socket::Status estado=soquete.connect(getip,std::stoi(getporta),sf::seconds(15.f));
     if(estado!=sf::Socket::Done)
         return 0;
 
     fonte.loadFromFile("sides/consola.ttf");
-    antesdigitarnome.setFont(fonte);
-    antesdigitarnome.setCharacterSize(20);
-    antesdigitarnome.setFillColor(sf::Color(0,0,0));
+    Mensagem::fonte=fonte;
+    Resposta::fonte=fonte;
+    textopadrao=sf::Text("",fonte,20);
+    textopadrao.setFillColor(sf::Color::Black);
+    antesdigitarnome=textopadrao;
     digitarnome=antesdigitarnome;
     antesdigitarnome.setString("Digite seu nome");
     retnome.setFillColor(sf::Color::White);
@@ -140,41 +143,35 @@ bool Inicializa()
     ordemconversas.push_front(id);
     cvatual=id;
 //formata textos
-    Texto::textopadrao.setFillColor(sf::Color(0,0,0));
-    Texto::textopadrao.setCharacterSize(20);
-    Texto::textopadrao.setFont(fonte);
-    textoenvia=Texto::textopadrao;
+    textoenvia=textopadrao;
     textoenvia.setString("Enviar");
     textoenvia.setOrigin(poenomeio(textoenvia));
     textoenvia.setPosition(170,70);
-    textocancela=Texto::textopadrao;
+    textocancela=textopadrao;
     textocancela.setString("Cancelar");
     textocancela.setOrigin(poenomeio(textocancela));
     textocancela.setPosition(52,70);
-    textomensagem=Texto::textopadrao;
+    textomensagem=textopadrao;
     textomensagem.setPosition(300,710);
-    textoantespesquisa=Texto::textopadrao;
+    textoantespesquisa=textopadrao;
     textoantespesquisa.setPosition(0,70);
     textoantespesquisa.setString("Digite #id ou @nome do user\ndesejado (- para apagar)");
-    textopesquisa=Texto::textopadrao;
+    textopesquisa=textopadrao;
     textopesquisa.setPosition(5,125);
     antesdigitarnome.setString("Digite o novo nome ou esc");
-    nomefixo=Texto::textopadrao;
+    nomefixo=textopadrao;
     nomefixo.setString(nome);
     nomefixo.setPosition(5,5);
-    idfixo=Texto::textopadrao;
+    idfixo=textopadrao;
     idfixo.setCharacterSize(18);
     idfixo.setFillColor(sf::Color(255,0,0));
     idfixo.setString("#"+std::to_string(id));
     idfixo.setPosition(5,30);
-    nomecvatual=Texto::textopadrao;
+    nomecvatual=textopadrao;
     nomecvatual.setString(nome);
     nomecvatual.setPosition(305,5);
-    //idfixo.setStyle(sf::Text::Bold);
+
 //formata sprites
-    retpadrao1.setFillColor(sf::Color(81,91,250));
-    retpadrao2=retpadrao1;
-    retpadrao2.setFillColor(sf::Color(120,151,200));
     retenvia.setFillColor(sf::Color(34,177,76));
     retenvia.setPosition(120,55);
     retcancela.setFillColor(sf::Color(183,28,55));
@@ -200,7 +197,7 @@ bool Inicializa()
         retcontato[i].setPosition(0,160+80*i);
         limconversas[i]=retcontato[i].getGlobalBounds();
         idsconversas[i]=-1;
-        textosidsconversas[i]=Texto::textopadrao;
+        textosidsconversas[i]=textopadrao;
         textosidsconversas[i].setPosition(5,165+80*i);
         notificacao[i]=sf::CircleShape(5);
         notificacao[i].setFillColor(sf::Color(255,223,176));
@@ -250,9 +247,11 @@ int DesfazEnter()
 
 void ChecaClique(sf::Vector2f posimouse,bool botao,float off)
 {
-    for(auto it=contatos[cvatual].chat.rbegin(); it!=contatos[cvatual].chat.rend(); ++it)
+    int aux;
+    auto& contatoatual=contatos[cvatual];
+    for(auto it=contatoatual.chat.rbegin(); it!=contatoatual.chat.rend(); ++it)
     {
-        int retorno=(*it)->Clicou(posimouse,botao,off);
+        int retorno=(*it)->Clicou(posimouse,botao,off,aux);
         if(retorno==2)
         {
             Imagem *p=dynamic_cast<Imagem*>((*it).get());
@@ -268,8 +267,39 @@ void ChecaClique(sf::Vector2f posimouse,bool botao,float off)
             }
             spriteprint.setPosition(650,400);
             visualizaprint=true;
+            return;
         }
-        if(retorno!=0)
+        else if (retorno==3)
+        {
+            e_resp=aux;
+            caixa.setFillColor(sf::Color(195,195,195));
+            return;
+        }
+        else if(retorno==4)
+        {
+            Mensagem* orig=(*it)->resp->original;
+            int off2=orig->offset;
+            aux=orig->limites.top;
+            (*it)->resp->original->contorno.setFillColor(sf::Color(61,204,61));
+            if(aux<0)
+            {
+                alturabase=-aux+40;
+                scrolling=true;
+            }
+            else if(aux<30)
+            {
+                scrolling=true;
+                alturabase=off2;
+            }
+            sf::sleep(sf::seconds(5.f));
+            if(orig->propria)
+                (*it)->resp->original->contorno.setFillColor(Mensagem::cor2);
+            else
+                (*it)->resp->original->contorno.setFillColor(Mensagem::cor1);
+            e_resp=0;
+            return;
+        }
+        else if(retorno==1)
             return;
     }
 }
